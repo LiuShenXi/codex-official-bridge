@@ -5,6 +5,7 @@ import { mkdtemp, lstat, readFile, rm } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import { pipeline } from 'node:stream/promises';
 import { BridgeError } from './protocol.mjs';
+import { tunnelWebSocket } from './native-websocket.mjs';
 import { codexEnvironment, PROJECT_ROOT } from './runtime.mjs';
 
 const HOP_HEADERS = ['connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailer', 'transfer-encoding', 'upgrade'];
@@ -54,11 +55,16 @@ export async function forwardRawRequest({ req, res, signal, port, token, timeout
   } finally { clearTimeout(timeout); }
 }
 
+export function forwardRawWebSocket(options) {
+  return tunnelWebSocket({ ...options, filterHeaders: transportHeaders });
+}
+
 export class NativeRuntime {
   constructor({ nativeCommand, nativeArgs = [], codexHome, cwd, requestTimeoutMs = 120_000, startupTimeoutMs = 20_000, runtimeDir = path.join(PROJECT_ROOT, '.runtime'), env = process.env }) {
     Object.assign(this, { command: nativeCommand, args: nativeArgs, codexHome, cwd, requestTimeoutMs, startupTimeoutMs, runtimeDir });
     this.env = codexEnvironment(codexHome, env);
     this.closed = true;
+    this.webSockets = new Set();
   }
 
   async start() {
@@ -95,15 +101,24 @@ export class NativeRuntime {
     } catch (error) { await this.close(); throw error; }
   }
 
-  status() { return { mode: 'native', ready: !this.closed, transport: 'http-sse', toolsExecute: 'client' }; }
+  status() { return { version: '0.2.0', mode: 'native', ready: !this.closed, transport: 'http-sse-websocket', capabilities: { responses: true, websocket: true, imageGeneration: true }, activeWebSockets: this.webSockets.size, toolsExecute: 'client' }; }
 
   async forward(req, res, { signal, bodyLimit }) {
     if (this.closed) throw new BridgeError(503, 'runtime_unavailable', 'The official runtime is not running.');
     return forwardRawRequest({ req, res, signal, port: this.port, token: this.token, timeoutMs: this.requestTimeoutMs, bodyLimit });
   }
 
+  async forwardWebSocket(req, socket, head, { signal } = {}) {
+    if (this.closed) throw new BridgeError(503, 'runtime_unavailable', 'The official runtime is not running.');
+    this.webSockets.add(socket);
+    try { await forwardRawWebSocket({ req, socket, head, signal, port: this.port, token: this.token, timeoutMs: this.requestTimeoutMs }); }
+    finally { this.webSockets.delete(socket); }
+  }
+
   async close() {
     this.closed = true;
+    for (const socket of this.webSockets) socket.destroy();
+    this.webSockets.clear();
     if (this.child && this.child.exitCode === null && this.child.signalCode === null) {
       this.child.kill('SIGTERM');
       const force = setTimeout(() => this.child.kill('SIGKILL'), 2000);

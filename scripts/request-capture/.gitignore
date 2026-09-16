@@ -1,0 +1,19 @@
+# Local setup, test outputs and Python cache are never source files.
+__pycache__/
+*.py[cod]
+.venv/
+capture-config.json
+private/
+proxy-state*/
+selftest-state/
+runs/
+records/
+analysis/
+*.cap
+*.dpapi
+*.pem
+*.pid
+*.log
+ca/
+selftests/
+bin/

@@ -1006,6 +1006,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b52af3cb4058c895d37317bb27508dccc8e5f2d39454016b297bf4a400597b8"
 dependencies = [
  "axum-core",
+ "base64 0.22.1",
  "bytes",
  "futures-util",
  "http 1.4.0",
@@ -1020,8 +1021,10 @@ dependencies = [
  "percent-encoding",
  "pin-project-lite",
  "serde_core",
+ "sha1",
  "sync_wrapper",
  "tokio",
+ "tokio-tungstenite",
  "tower",
  "tower-layer",
  "tower-service",
@@ -1831,7 +1834,7 @@ dependencies = [
 
 [[package]]
 name = "codex-native-runtime"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "axum",
  "bytes",
@@ -1840,11 +1843,15 @@ dependencies = [
  "codex-login",
  "codex-model-provider",
  "codex-model-provider-info",
+ "codex-websocket-client",
+ "futures-util",
  "http 1.4.0",
  "rand 0.9.3",
  "reqwest",
  "serde_json",
  "tokio",
+ "tokio-tungstenite",
+ "tungstenite",
 ]
 
 [[package]]

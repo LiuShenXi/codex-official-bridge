@@ -1,6 +1,6 @@
 [package]
 name = "codex-native-runtime"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.95"
 publish = false
@@ -15,18 +15,22 @@ path = "src/main.rs"
 [workspace]
 
 [dependencies]
-axum = { version = "0.8", default-features = false, features = ["http1", "tokio"] }
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "ws"] }
 bytes = "1"
 codex-api = { path = "../.runtime/vendor/codex/codex-rs/codex-api" }
 codex-http-client = { path = "../.runtime/vendor/codex/codex-rs/http-client" }
 codex-login = { path = "../.runtime/vendor/codex/codex-rs/login" }
 codex-model-provider = { path = "../.runtime/vendor/codex/codex-rs/model-provider" }
 codex-model-provider-info = { path = "../.runtime/vendor/codex/codex-rs/model-provider-info" }
+codex-websocket-client = { path = "../.runtime/vendor/codex/codex-rs/websocket-client" }
+futures-util = { version = "0.3", features = ["sink"] }
 http = "1"
 rand = "0.9"
 reqwest = { version = "0.12", features = ["stream", "socks"] }
 serde_json = "1"
-tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "signal"] }
+tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "signal", "time"] }
+tokio-tungstenite = { version = "0.28.0", features = ["proxy", "rustls-tls-native-roots"] }
+tungstenite = { version = "0.27.0", features = ["deflate", "proxy"] }
 
 # Dependency patches from the pinned upstream workspace do not propagate into
 # a consuming workspace. Keep these exact revisions in sync with that tag.

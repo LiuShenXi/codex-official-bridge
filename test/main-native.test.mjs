@@ -97,7 +97,7 @@ async function startMain(t) {
   return { child, exited, runtime, port, diagnostics: () => ({ stdout, stderr }) };
 }
 
-test('native child death makes the actual main process exit 1 and close its listener', async t => {
+test('native child death makes the actual main process exit 1 and close its listener', { skip: process.platform === 'win32' ? 'The serving runtime requires Unix private-file permissions; release checks execute this on Linux.' : false }, async t => {
   const { exited, runtime, port, diagnostics } = await startMain(t);
   process.kill(runtime.pid, 'SIGKILL');
   const result = await bounded(exited, 3000, 'Main stayed alive after its native runtime died.');
@@ -108,7 +108,7 @@ test('native child death makes the actual main process exit 1 and close its list
   await assert.rejects(access(path.dirname(runtime.controlFile)), { code: 'ENOENT' });
 });
 
-test('operator shutdown keeps exit 0 when the native child exits during normal cleanup', async t => {
+test('operator shutdown keeps exit 0 when the native child exits during normal cleanup', { skip: process.platform === 'win32' ? 'The serving runtime requires Unix private-file permissions; release checks execute this on Linux.' : false }, async t => {
   const { child, exited, runtime, port, diagnostics } = await startMain(t);
   child.kill('SIGTERM');
   const result = await bounded(exited, 3000, 'Main did not finish its requested shutdown.');

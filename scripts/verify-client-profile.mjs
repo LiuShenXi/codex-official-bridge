@@ -15,6 +15,7 @@ const evidence = {
   client: 'official-cli-with-existing-client-profile',
   desktop_ui_tested: false, profile_configuration_overridden: false,
   event_counts: {}, item_counts: {}, startup_error_categories: {}, runtime_error_categories: {},
+  transport_log_counts: { websocket_connecting: 0, http_fallback: 0 },
 };
 let temporary;
 let rpc;
@@ -90,7 +91,15 @@ function runCli(args, { cwd, env, timeoutMs, maxBytes = 4 * 1024 * 1024 }) {
       if (bytes > maxBytes) { failure = 'official_output_limit'; stopGroup(child); }
       else chunks.push(chunk);
     });
-    child.stderr.on('data', () => {}); // Never echo or retain raw diagnostics.
+    let diagnostics = '';
+    child.stderr.on('data', chunk => {
+      diagnostics += chunk.toString('utf8');
+      const lines = diagnostics.split('\n'); diagnostics = lines.pop().slice(-16384);
+      for (const line of lines) {
+        if (/connecting to websocket/i.test(line)) evidence.transport_log_counts.websocket_connecting++;
+        if (/falling back to HTTP/i.test(line)) evidence.transport_log_counts.http_fallback++;
+      }
+    }); // Only bounded diagnostic counters escape; never log headers or payloads.
     child.once('error', () => { failure = 'official_cli_start_failed'; });
     child.once('close', code => {
       clearTimeout(timer);
@@ -122,6 +131,7 @@ try {
     if (/^(?:CODEX_|BRIDGE_|OPENAI_|CHATGPT_)/.test(name) || ['LIVE_DESKTOP_BRIDGE_KEY', 'FIXTURE_OPENAI_API_KEY'].includes(name)) delete env[name];
   }
   env.CODEX_HOME = clientHome;
+  env.RUST_LOG = 'codex_api::endpoint::responses_websocket=info,codex_core::client=warn';
 
   stage = 'read_effective_client_configuration';
   rpc = new CodexRpc({ command, args: ['app-server', '--listen', 'stdio://'], cwd, env, requestTimeoutMs: 15_000 });
@@ -135,6 +145,8 @@ try {
   evidence.loaded_model = safeIdentifier(config.model);
   evidence.loaded_provider = safeIdentifier(providerId);
   evidence.loaded_provider_name = safeIdentifier(provider?.name);
+  evidence.loaded_supports_websockets = provider?.supports_websockets === true;
+  evidence.loaded_bridge_images = config.mcp_servers?.bridge_images?.enabled !== false && Boolean(config.mcp_servers?.bridge_images);
   evidence.loaded_reasoning_effort = safeIdentifier(config.model_reasoning_effort);
   evidence.loaded_features = {
     code_mode: typeof config.features?.code_mode === 'boolean' ? config.features.code_mode : null,

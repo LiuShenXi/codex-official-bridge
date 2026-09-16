@@ -15,7 +15,7 @@ async function setup(t, mode = 'ready') {
   return { runtime, directory };
 }
 
-test('private runtime startup strips gateway/parent credentials and closes its child', async t => {
+test('private runtime startup strips gateway/parent credentials and closes its child', { skip: process.platform === 'win32' ? 'The serving runtime requires Unix private-file permissions; release checks execute this on Linux.' : false }, async t => {
   const { runtime, directory } = await setup(t);
   await runtime.start();
   assert.equal(runtime.status().ready, true);
@@ -37,7 +37,7 @@ for (const mode of ['exit', 'stall', 'public']) {
   });
 }
 
-test('exit during the readiness file read cannot publish a ready runtime', async () => {
+test('exit during the readiness file read cannot publish a ready runtime', { skip: process.platform === 'win32' ? 'The serving runtime requires Unix private-file permissions; release checks execute this on Linux.' : false }, async () => {
   // Keep the builtin fs interception confined to a separate Node process so
   // other runtime and HTTP tests cannot observe the injected scheduling point.
   const fixture = fileURLToPath(new URL('./fixtures/native-exit-during-read.mjs', import.meta.url));

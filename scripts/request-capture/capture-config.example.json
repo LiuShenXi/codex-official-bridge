@@ -1,0 +1,10 @@
+{
+  "python": "C:/path/to/python.exe",
+  "mitmdump": "C:/path/to/codex-official-bridge/.runtime/request-capture/bin/mitmdump.exe",
+  "data_root": "C:/path/to/codex-official-bridge/.runtime/request-capture",
+  "second_root": "C:/path/to/codex-official-bridge/.runtime/windows-second",
+  "third_root": "C:/path/to/codex-official-bridge/.runtime/windows-third",
+  "ssh_host": "main-server",
+  "remote_root": "/opt/codex-official-bridge/.runtime-capture",
+  "official_upstream_proxy": "http://127.0.0.1:7897"
+}

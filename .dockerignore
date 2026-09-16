@@ -15,3 +15,17 @@
 !native-runtime/Cargo.lock
 !native-runtime/src/
 !native-runtime/src/**
+
+!test/
+!test/**
+
+# Capture archives and keys must stay outside every future build context.
+**/__pycache__/**
+**/*.pyc
+scripts/request-capture/private/**
+scripts/request-capture/runs/**
+scripts/request-capture/records/**
+scripts/request-capture/capture-config.json
+scripts/request-capture/**/*.cap
+scripts/request-capture/**/*.dpapi
+scripts/request-capture/**/*.pem

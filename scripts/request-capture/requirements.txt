@@ -1,0 +1,6 @@
+# Controller/analysis dependencies; mitmproxy is a separate portable executable.
+# Tested locally with Python 3.11, cryptography 44.0.2 and zstandard 0.23.0.
+cryptography>=44.0.2
+zstandard>=0.23.0
+# Brotli body decoding is optional for collection, required to analyze br JSON.
+Brotli>=1.1.0

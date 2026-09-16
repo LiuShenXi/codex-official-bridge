@@ -21,7 +21,7 @@ export function createBridgeServer({ bridge, rawUpstream, apiKey, bodyLimit = ra
     const backend = rawUpstream ?? bridge;
     if (req.method === 'GET' && url.pathname === '/healthz') return json(res, backend.closed ? 503 : 200, backend.status());
     if (rawUpstream) {
-      const allowed = (req.method === 'POST' && ['/v1/responses', '/v1/responses/compact'].includes(url.pathname) && !url.search)
+      const allowed = (req.method === 'POST' && ['/v1/responses', '/v1/responses/compact', '/v1/images/generations'].includes(url.pathname) && !url.search)
         || (req.method === 'GET' && url.pathname === '/v1/models');
       // Origin-form targets only; this endpoint cannot select an upstream host.
       if (!allowed || !req.url.startsWith('/v1/') || req.url.startsWith('//')) return json(res, 404, { error: { code: 'not_found', message: 'Unsupported model endpoint.' } });
@@ -47,9 +47,9 @@ export function createBridgeServer({ bridge, rawUpstream, apiKey, bodyLimit = ra
       if (!/^application\/json(?:\s*;|$)/i.test(req.headers['content-type'] ?? '')) throw new BridgeError(415, 'unsupported_media_type', 'Use Content-Type: application/json.');
       let length = 0;
       const chunks = [];
-      for await (const chunk of req) {
+      for await (const chunk of req.iterator({ destroyOnReturn: false })) {
         length += chunk.length;
-        if (length > bodyLimit) throw new BridgeError(413, 'body_too_large', `Request body exceeds ${bodyLimit} bytes.`);
+        if (length > bodyLimit) { req.resume(); throw new BridgeError(413, 'body_too_large', `Request body exceeds ${bodyLimit} bytes.`); }
         chunks.push(chunk);
       }
       let body;
@@ -74,6 +74,28 @@ export function createBridgeServer({ bridge, rawUpstream, apiKey, bodyLimit = ra
         else json(res, error instanceof BridgeError ? error.status : 500, errorBody(error));
       }
     } finally { clearInterval(heartbeat); }
+  });
+  server.on('upgrade', async (req, socket, head) => {
+    // An upgrade bypasses the normal HTTP request handler, including its auth.
+    // Repeat all boundary checks before opening any runtime connection.
+    const deny = (status, code, message) => {
+      if (socket.destroyed || socket.writableEnded) return;
+      const body = JSON.stringify({ error: { code, message } });
+      socket.end(`HTTP/1.1 ${status} ${http.STATUS_CODES[status]}\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: ${Buffer.byteLength(body)}\r\nCache-Control: no-store\r\n\r\n${body}`);
+    };
+    socket.on('error', () => {});
+    if (req.headers.origin) return deny(403, 'browser_origin_denied', 'Browser-origin requests are not supported.');
+    if (!timingSafeEqual(authHash, hash(req.headers.authorization ?? ''))) return deny(401, 'invalid_api_key', 'A valid Bearer key is required.');
+    if (!rawUpstream || typeof rawUpstream.forwardWebSocket !== 'function') return deny(501, 'websocket_unavailable', 'WebSocket requires the native runtime.');
+    if (req.method !== 'GET' || req.url !== '/v1/responses') return deny(404, 'not_found', 'Unsupported WebSocket endpoint.');
+    const key = req.headers['sec-websocket-key'];
+    if (req.headers.upgrade?.toLowerCase() !== 'websocket' || req.headers['sec-websocket-version'] !== '13' || typeof key !== 'string' || !/^[A-Za-z0-9+/]{22}==$/.test(key) || Buffer.from(key, 'base64').length !== 16) {
+      return deny(400, 'invalid_websocket_handshake', 'A valid WebSocket version 13 handshake is required.');
+    }
+    const controller = new AbortController();
+    socket.once('close', () => controller.abort());
+    try { await rawUpstream.forwardWebSocket(req, socket, head, { signal: controller.signal, bodyLimit }); }
+    catch (error) { deny(error instanceof BridgeError ? error.status : 502, error instanceof BridgeError ? error.code : 'native_websocket_failed', 'The official runtime WebSocket connection failed.'); }
   });
   server.headersTimeout = 15_000;
   server.requestTimeout = 30_000;

@@ -1,13 +1,15 @@
 {
   "name": "codex-official-bridge",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Desktop Responses gateway backed by pinned official Codex transport libraries",
   "type": "module",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "node src/main.mjs",
-    "test": "node --test test/*.test.mjs",
+    "test": "node scripts/test.mjs",
     "check": "node scripts/check.mjs",
     "demo": "node examples/tool-client.mjs",
     "login": "node scripts/login.mjs",
@@ -17,6 +19,10 @@
     "verify:live-desktop": "node scripts/verify-live-desktop.mjs",
     "verify:client-profile": "node scripts/verify-client-profile.mjs",
     "verify:live-compact": "node scripts/verify-live-compact.mjs",
-    "build:native": "node scripts/build-native-runtime.mjs"
+    "build:native": "node scripts/build-native-runtime.mjs",
+    "capture": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/request-capture/capture.ps1",
+    "test:capture": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/request-capture/test.ps1",
+    "verify:websocket": "node scripts/verify-websocket.mjs",
+    "images:mcp": "node scripts/desktop-image-mcp.mjs"
   }
 }

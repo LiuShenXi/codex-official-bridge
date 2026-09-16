@@ -1,0 +1,18 @@
+# Applied only by remote_capture.sh. The base deployment remains authoritative.
+services:
+  bridge:
+    environment:
+      HTTP_PROXY: http://127.0.0.1:18889
+      HTTPS_PROXY: http://127.0.0.1:18889
+      ALL_PROXY: http://127.0.0.1:18889
+      http_proxy: http://127.0.0.1:18889
+      https_proxy: http://127.0.0.1:18889
+      all_proxy: http://127.0.0.1:18889
+      CODEX_CA_CERTIFICATE: /capture-ca/mitmproxy-ca-cert.pem
+    volumes:
+      - type: bind
+        source: "${CAPTURE_HOME:?Set CAPTURE_HOME}/ca/mitmproxy-ca-cert.pem"
+        target: /capture-ca/mitmproxy-ca-cert.pem
+        read_only: true
+        bind:
+          create_host_path: false

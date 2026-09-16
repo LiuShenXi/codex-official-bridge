@@ -33,8 +33,11 @@ use codex_login::{
 };
 use codex_model_provider::{auth_provider_from_auth_manager, create_model_provider};
 use codex_model_provider_info::{CHATGPT_CODEX_BASE_URL, ModelProviderInfo};
+use codex_websocket_client::WebSocketConnector;
 use http::{HeaderMap, HeaderName, Method, StatusCode};
 use rand::RngCore;
+
+mod websocket;
 
 const INTERNAL_TOKEN_HEADER: &str = "x-codex-runtime-token";
 const MAX_BODY_BYTES: usize = 16 * 1024 * 1024;
@@ -45,6 +48,7 @@ struct Runtime {
     auth: SharedAuthProvider,
     provider: Provider,
     client: HttpClient,
+    websocket: WebSocketConnector,
     capability: String,
 }
 
@@ -113,6 +117,8 @@ async fn run() -> Result<(), &'static str> {
         .build_reqwest_client(builder, CHATGPT_CODEX_BASE_URL, ClientRouteClass::Api)
         .map_err(|_| "official_http_client_unavailable")?;
     let client = HttpClient::new_without_request_logging(http);
+    let websocket = WebSocketConnector::new(&factory)
+        .map_err(|_| "official_websocket_client_unavailable")?;
 
     let mut random = [0_u8; 32];
     rand::rng().fill_bytes(&mut random);
@@ -129,11 +135,13 @@ async fn run() -> Result<(), &'static str> {
         auth,
         provider,
         client,
+        websocket,
         capability,
     });
     let app = Router::new()
-        .route("/v1/responses", post(forward_responses))
+        .route("/v1/responses", post(forward_responses).get(websocket::forward_websocket))
         .route("/v1/responses/compact", post(forward_compact))
+        .route("/v1/images/generations", post(forward_images))
         .route("/v1/models", get(forward_models))
         .with_state(state.clone());
 
@@ -247,6 +255,12 @@ async fn forward_responses(State(state): State<Arc<Runtime>>, request: Request) 
 
 async fn forward_compact(State(state): State<Arc<Runtime>>, request: Request) -> Response {
     forward(state, request, Method::POST, "/responses/compact", false).await
+}
+
+async fn forward_images(State(state): State<Arc<Runtime>>, request: Request) -> Response {
+    // The desktop's official image request already contains its native JSON
+    // envelope. Retain every byte and stream the official response unchanged.
+    forward(state, request, Method::POST, "/images/generations", false).await
 }
 
 async fn forward_models(State(state): State<Arc<Runtime>>, request: Request) -> Response {

@@ -4,6 +4,8 @@ FROM rust:1.95.0-bookworm@sha256:6258907abe69656e41cd992e0b705cdcfabcbbe3db374f9
 
 ARG TARGETARCH
 ARG CARGO_BUILD_JOBS=1
+# Use 0 only for an intentional dependency update; export and commit the new lock.
+ARG CARGO_LOCKED=1
 ENV CARGO_BUILD_JOBS=${CARGO_BUILD_JOBS} \
     CARGO_INCREMENTAL=0 \
     CARGO_PROFILE_RELEASE_DEBUG=0 \
@@ -42,7 +44,7 @@ RUN --mount=type=cache,id=codex-native-registry,target=/usr/local/cargo/registry
       cp .runtime/vendor/codex/codex-rs/Cargo.lock native-runtime/Cargo.lock; \
     fi; \
     lock_flag=""; \
-    if grep -q '^name = "codex-native-runtime"$' native-runtime/Cargo.lock; then lock_flag="--locked"; fi; \
+    if [ "${CARGO_LOCKED}" = "1" ] && grep -q '^name = "codex-native-runtime"$' native-runtime/Cargo.lock; then lock_flag="--locked"; fi; \
     touch native-runtime/src/main.rs; \
     cargo test --release --jobs "${CARGO_BUILD_JOBS}" ${lock_flag} \
       --manifest-path native-runtime/Cargo.toml --target-dir .runtime/native-target \
@@ -53,6 +55,15 @@ RUN --mount=type=cache,id=codex-native-registry,target=/usr/local/cargo/registry
     mkdir -p /out; \
     cp .runtime/native-target/release/codex-official-runtime /out/; \
     cp native-runtime/Cargo.lock /out/Cargo.lock
+
+FROM node:20-bookworm-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0 AS node-tests
+WORKDIR /app
+COPY package.json ./
+COPY src/ src/
+COPY scripts/ scripts/
+COPY examples/ examples/
+COPY test/ test/
+RUN npm test && npm run check
 
 FROM node:20-bookworm-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0 AS runtime
 
@@ -67,10 +78,10 @@ LABEL io.codex-bridge.upstream.tag="rust-v0.154.0-alpha.6.2" \
 WORKDIR /app
 COPY --from=native-build /out/codex-official-runtime /usr/local/bin/codex-official-runtime
 COPY --from=native-build /out/Cargo.lock /usr/local/share/codex-official-runtime/Cargo.lock
-COPY package.json ./
-COPY src/ src/
-COPY scripts/ scripts/
-COPY examples/ examples/
+COPY --from=node-tests /app/package.json ./
+COPY --from=node-tests /app/src/ src/
+COPY --from=node-tests /app/scripts/ scripts/
+COPY --from=node-tests /app/examples/ examples/
 RUN mkdir -p /app/.runtime /var/lib/codex-auth \
     && chown node:node /app/.runtime /var/lib/codex-auth
 
