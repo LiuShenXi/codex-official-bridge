@@ -1,0 +1,68 @@
+services:
+  bridge:
+    image: codex-official-bridge:local
+    build:
+      context: .
+      args:
+        CARGO_BUILD_JOBS: "1"
+    # Linux deployment only. The Node listener and Rust control listener both
+    # bind 127.0.0.1; no container port is published to the public interface.
+    network_mode: host
+    init: true
+    restart: unless-stopped
+    cpus: 1.0
+    mem_limit: 1g
+    pids_limit: 128
+    user: "${BRIDGE_UID:-1000}:${BRIDGE_GID:-1000}"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m,mode=1777
+    environment:
+      NODE_ENV: production
+      BRIDGE_MODE: native
+      BRIDGE_PORT: "8879"
+      BRIDGE_API_KEY: "${BRIDGE_API_KEY:?Set BRIDGE_API_KEY in the private deployment environment}"
+      BRIDGE_NATIVE_BIN: /usr/local/bin/codex-official-runtime
+      BRIDGE_CODEX_HOME: /var/lib/codex-auth
+      BRIDGE_NATIVE_STARTUP_TIMEOUT_MS: "${BRIDGE_NATIVE_STARTUP_TIMEOUT_MS:-120000}"
+      BRIDGE_REQUEST_TIMEOUT_MS: "${BRIDGE_REQUEST_TIMEOUT_MS:-600000}"
+      # Existing main-server -> BWH static residential egress tunnel.
+      HTTP_PROXY: socks5h://172.30.80.1:11080
+      HTTPS_PROXY: socks5h://172.30.80.1:11080
+      ALL_PROXY: socks5h://172.30.80.1:11080
+      http_proxy: socks5h://172.30.80.1:11080
+      https_proxy: socks5h://172.30.80.1:11080
+      all_proxy: socks5h://172.30.80.1:11080
+      NO_PROXY: 127.0.0.1,localhost,::1
+      no_proxy: 127.0.0.1,localhost,::1
+    volumes:
+      - type: bind
+        source: "${BRIDGE_RUNTIME_DIR:-./.runtime-container}"
+        target: /app/.runtime
+        bind:
+          create_host_path: false
+      - type: bind
+        source: "${BRIDGE_AUTH_DIR:-./.runtime/codex-home}"
+        target: /var/lib/codex-auth
+        bind:
+          create_host_path: false
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:8879/healthz',{headers:{authorization:'Bearer '+process.env.BRIDGE_API_KEY},signal:AbortSignal.timeout(3000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      start_period: 150s
+      retries: 3
+    stop_grace_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"

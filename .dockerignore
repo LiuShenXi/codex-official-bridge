@@ -1,0 +1,17 @@
+# An allowlist prevents auth.json, .env, keys, logs, vendor trees, and local
+# build products from ever being sent to the Docker daemon as context.
+**
+!Dockerfile
+!.dockerignore
+!package.json
+!src/
+!src/**
+!scripts/
+!scripts/**
+!examples/
+!examples/**
+!native-runtime/
+!native-runtime/Cargo.toml
+!native-runtime/Cargo.lock
+!native-runtime/src/
+!native-runtime/src/**

@@ -1,0 +1,22 @@
+{
+  "name": "codex-official-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Desktop Responses gateway backed by pinned official Codex transport libraries",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node src/main.mjs",
+    "test": "node --test test/*.test.mjs",
+    "check": "node scripts/check.mjs",
+    "demo": "node examples/tool-client.mjs",
+    "login": "node scripts/login.mjs",
+    "doctor": "node scripts/doctor.mjs",
+    "verify:official": "node scripts/verify-official.mjs",
+    "verify:desktop": "node scripts/verify-desktop-contract.mjs",
+    "verify:live-desktop": "node scripts/verify-live-desktop.mjs",
+    "verify:client-profile": "node scripts/verify-client-profile.mjs",
+    "verify:live-compact": "node scripts/verify-live-compact.mjs",
+    "build:native": "node scripts/build-native-runtime.mjs"
+  }
+}
