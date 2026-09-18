@@ -47,6 +47,20 @@ test('existing output and invalid paths are rejected before any image request', 
   assert.equal(calls, 0); assert.equal(await readFile(existing, 'utf8'), 'keep');
 });
 
+test('health and generation preserve the gateway reverse-proxy path prefix', async t => {
+  const calls = [];
+  const f = await fixture(t, async url => { calls.push(String(url)); return response(); });
+  for (const suffix of ['/v1', '/v1/']) {
+    await writeFile(f.profile, JSON.stringify({ base_url: `https://example.test/codex/account-4${suffix}`, api_key: KEY }));
+    assert.equal((await f.service.getStatus()).bridge_reachable, true);
+    await f.service.generate({ prompt: 'prefix regression' });
+  }
+  assert.deepEqual(calls, Array(2).fill([
+    'https://example.test/codex/account-4/healthz',
+    'https://example.test/codex/account-4/v1/images/generations',
+  ]).flat());
+});
+
 test('directory symlinks and junctions cannot escape the output root', async t => {
   let calls = 0;
   const f = await fixture(t, async () => { calls++; return response(); });

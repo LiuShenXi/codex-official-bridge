@@ -8,7 +8,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from capture_vault import CaptureVault
-from analyze_capture import analyze_session, build_report, json_fields, markdown, Pairs, read_records
+from analyze_capture import analyze_session, build_report, json_fields, markdown, Pairs, read_records, load_private
 
 
 def b64(raw):
@@ -25,6 +25,28 @@ class AnalyzeTests(unittest.TestCase):
 
     def tearDown(self):
         self.tmp.cleanup()
+
+    def test_portable_private_key_permissions(self):
+        import os
+        key = self.root / 'private.pem'
+        key.write_bytes(self.private.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
+        key.chmod(0o600)
+        self.assertEqual(load_private(key).public_key().public_numbers(), self.private.public_key().public_numbers())
+        if os.name != 'nt':
+            key.chmod(0o644)
+            with self.assertRaises(ValueError):
+                load_private(key)
+
+    def test_custom_observation_labels(self):
+        labels = ('direct-bridge', 'sub2api-inbound', 'sub2api-outbound')
+        for label in labels:
+            self.session(label)
+        report = build_report(self.root, self.private, labels=labels)
+        self.assertEqual(report['required_labels'], list(labels))
+        self.assertEqual(report['missing_labels_with_flows'], [])
+        self.assertEqual(len(report['candidate_groups'][0]['pairs']), 3)
+        with self.assertRaises(ValueError):
+            build_report(self.root, self.private, labels=['secret/invalid'])
 
     def session(self, label, terminal=True, finished=True, changed=False):
         vault = CaptureVault(self.root, label, self.public)

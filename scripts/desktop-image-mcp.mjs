@@ -28,8 +28,10 @@ export async function loadConnection(profilePath) {
   try { base = new URL(profile.base_url); }
   catch { fail('profile_invalid', 'The connection base_url is invalid.'); }
   const loopback = ['127.0.0.1', 'localhost', '[::1]'].includes(base.hostname);
-  if (!['http:', 'https:'].includes(base.protocol) || (base.protocol === 'http:' && !loopback) || base.username || base.password || base.search || base.hash || !/^\/v1\/?$/.test(base.pathname)) fail('profile_invalid', 'Use a bridge /v1 endpoint over HTTPS or local loopback HTTP.');
-  return { endpoint: new URL('/v1/images/generations', base), health: new URL('/healthz', base), apiKey: profile.api_key };
+  if (!['http:', 'https:'].includes(base.protocol) || (base.protocol === 'http:' && !loopback) || base.username || base.password || base.search || base.hash || !/^(?:\/[A-Za-z0-9_-]+)*\/v1\/?$/.test(base.pathname)) fail('profile_invalid', 'Use a bridge endpoint ending in /v1 over HTTPS or local loopback HTTP.');
+  // Keep reverse-proxy mount prefixes, e.g. /codex/account-4/v1.
+  const apiPath = base.pathname.replace(/\/$/, '');
+  return { endpoint: new URL(`${apiPath}/images/generations`, base), health: new URL(`${apiPath.slice(0, -3)}/healthz`, base), apiKey: profile.api_key };
 }
 
 async function limitedBody(response, limit) {

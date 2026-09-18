@@ -19,7 +19,7 @@ from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from capture_vault import FRAME, MAGIC, MAX_FRAME_BYTES
-from keys import dpapi
+from analyze_capture import load_private
 
 MOCK_SECRET = b"SELFTEST_ONLY_NEVER_PLAIN"
 
@@ -89,7 +89,7 @@ def event(flow, name):
 
 def verify(root, expected_path, key_path):
     expected = json.loads(expected_path.read_text(encoding="utf-8"))
-    private_key = serialization.load_pem_private_key(dpapi(key_path.read_bytes(), True), password=None)
+    private_key = load_private(key_path)
     streams = [root] if (root / "header.json").is_file() else sorted(p.parent for p in root.glob("*/header.json"))
     if not streams:
         raise ValueError("no_capture_streams")

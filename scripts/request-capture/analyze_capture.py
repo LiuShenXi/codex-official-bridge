@@ -181,9 +181,15 @@ def completed_models(raw, transport):
 
 
 def load_private(path):
-    # keys.dpapi calls CryptUnprotectData for this Windows user. No initialize/write.
+    # Portable PEM keys must be owner-only; Windows retains DPAPI support.
+    path = Path(path)
+    protected = path.read_bytes()
+    if protected.startswith(b"-----BEGIN PRIVATE KEY-----"):
+        import os
+        if os.name != "nt" and (path.stat().st_mode & 0o077 or path.stat().st_uid != os.getuid()):
+            raise ValueError("private_key_requires_owner_only_permissions")
+        return serialization.load_pem_private_key(protected, password=None)
     import keys
-    protected = Path(path).read_bytes()
     return serialization.load_pem_private_key(keys.dpapi(protected, True), password=None)
 
 
@@ -344,12 +350,12 @@ def analyze_flow(records, verify_only):
     return result
 
 
-def analyze_session(directory, private, verify_only=False):
+def analyze_session(directory, private, verify_only=False, labels=LABELS):
     records, integrity = read_records(directory, private)
     starts = [r for r in records if r["event"] == "session_start"]
     ends = [r for r in records if r["event"] == "session_end"]
     original_label = starts[0]["data"].get("label") if starts else None
-    label = original_label if original_label in LABELS else "other_" + sha(str(original_label).encode())[:12]
+    label = original_label if original_label in labels else "other_" + sha(str(original_label).encode())[:12]
     integrity["session_start_present"] = bool(starts)
     integrity["session_end_present"] = bool(ends)
     if not starts:
@@ -416,15 +422,17 @@ def compare_pair(a, b, a_label, b_label):
             "completed_models": {a_label: a.get("completed_models", []), b_label: b.get("completed_models", [])}}
 
 
-def build_report(root, private, verify_only=False):
+def build_report(root, private, verify_only=False, labels=LABELS):
+    if not labels or len(set(labels)) != len(labels) or any(not re.fullmatch(r"[a-z0-9-]{1,64}", label) for label in labels):
+        raise ValueError("invalid_capture_labels")
     root = Path(root).resolve()
     candidates = list(root.rglob("header.json")) + list(root.rglob("events.cap"))
     directories = sorted({p.parent for p in candidates if p.resolve().is_relative_to(root)})
-    sessions = [analyze_session(path, private, verify_only) for path in directories]
+    sessions = [analyze_session(path, private, verify_only, labels) for path in directories]
     present = {s["label"] for s in sessions if s["flows"]}
-    missing = [label for label in LABELS if label not in present]
+    missing = [label for label in labels if label not in present]
     report = {"schema": 1, "mode": "verify_only" if verify_only else "safe_field_comparison", "sessions": sessions,
-              "required_labels": list(LABELS), "missing_labels_with_flows": missing,
+              "required_labels": list(labels), "missing_labels_with_flows": missing,
               "comparison_complete": False, "candidate_groups": [],
               "notes": ["All header values and body scalar values are hashes and lengths, never plaintext.",
                         "Header order is parsed field order; websocket payloads are parsed messages, not original network frames.",
@@ -439,7 +447,7 @@ def build_report(root, private, verify_only=False):
         return report
     groups = {}
     for session in sessions:
-        if session["label"] not in LABELS:
+        if session["label"] not in labels:
             continue
         for flow in session["flows"]:
             key = flow.get("correlation_key")
@@ -451,8 +459,9 @@ def build_report(root, private, verify_only=False):
         for ordinal in range(max(map(len, sides.values()))):
             chosen = {label: items[ordinal] for label, items in sides.items() if ordinal < len(items)}
             group = {"prompt_sha256": key, "occurrence": ordinal, "labels": sorted(chosen),
-                     "missing_labels": [label for label in LABELS if label not in chosen], "pairing_verified": False, "pairs": []}
-            for left, right in (("bridge-inbound", "bridge-upstream"), ("bridge-upstream", "official-outbound"), ("bridge-inbound", "official-outbound")):
+                     "missing_labels": [label for label in labels if label not in chosen], "pairing_verified": False, "pairs": []}
+            from itertools import combinations
+            for left, right in combinations(labels, 2):
                 if left in chosen and right in chosen:
                     group["pairs"].append(compare_pair(chosen[left], chosen[right], left, right))
             report["candidate_groups"].append(group)
@@ -494,10 +503,11 @@ def main(argv=None):
     parser.add_argument("--output", type=Path, help="Safe report basename or .json/.md path; default ROOT/analysis/capture-comparison")
     parser.add_argument("--key-file", type=Path, default=Path(__file__).with_name("private") / "capture-private.dpapi")
     parser.add_argument("--verify-only", action="store_true", help="Validate integrity and terminal records; skip field comparisons")
+    parser.add_argument("--labels", nargs="+", default=LABELS, help="Expected observation point labels")
     args = parser.parse_args(argv)
     try:
         private = load_private(args.key_file)
-        report = build_report(args.root, private, args.verify_only)
+        report = build_report(args.root, private, args.verify_only, args.labels)
         output = args.output or args.root / "analysis" / "capture-comparison"
         base = output.with_suffix("") if output.suffix.lower() in (".json", ".md") else output
         base.parent.mkdir(parents=True, exist_ok=True)

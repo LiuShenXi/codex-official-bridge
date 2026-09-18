@@ -69,7 +69,8 @@ def target(request):
     path = urlsplit(request.url).path
     if host == "chatgpt.com":
         return path == "/backend-api/codex" or path.startswith("/backend-api/codex/")
-    if host in ("127.0.0.1", "localhost", "::1", "selftest.local"):
+    extra_hosts = {h.strip().lower().rstrip(".") for h in os.environ.get("CAPTURE_ALLOWED_HOSTS", "").split(",") if h.strip()}
+    if host in ("127.0.0.1", "localhost", "::1", "selftest.local") or host in extra_hosts:
         if path == "/selftest" or path.startswith("/selftest/") or path == "/__capture_selftest__" or path.startswith("/__capture_selftest__/"):
             return True
         return host != "selftest.local" and path in ("/v1/responses", "/v1/responses/compact", "/v1/models", "/v1/images/generations")

@@ -90,3 +90,19 @@ icacls $captureData /inheritance:r /grant:r ('*'+$captureSid+':(OI)(CI)F') '*S-1
 ```powershell
 & $python .\scripts\request-capture\analyze_capture.py --root '<历史批次目录>' --key-file '<对应 capture-private.dpapi>' --output '<安全报告基名>'
 ```
+# macOS / Sub2API comparison
+
+The addon also supports explicit reverse-proxy upstream hosts through
+`CAPTURE_ALLOWED_HOSTS` (comma-separated). Only the existing model API routes
+are captured on those hosts; unrelated authentication routes remain excluded.
+Reverse proxies rewrite destination host/authority and introduce additional
+transport overhead. Do not attribute those effects to Sub2API.
+
+The analyzer accepts owner-only PEM private keys on macOS/Linux, in addition
+to Windows DPAPI keys. Keep the private key on the analysis machine and deploy
+only its public key to capture servers. `--labels direct-bridge
+sub2api-inbound sub2api-outbound` selects the expected observation points.
+Pairing by prompt hash is only a candidate match, not proof of causality.
+
+The temporary, installed September 17 desktop 2/3 topology and recovery steps
+are documented in `docs/chain-capture-20260917.md` at the repository root.

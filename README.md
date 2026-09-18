@@ -17,6 +17,8 @@
 
 ## 接手入口
 
+- [内置调度实施清单](docs/scheduler-implementation-plan.md)：新会话开发入口，覆盖M0–M3、当前工作树保护、阶段验收及可复制启动提示词。
+- [内置调度设计 v1](docs/scheduler-design-v1.md)：原型后修订的独立账号池、任务绑定与失败恢复设计，含[状态控制合同](docs/scheduler-control-contract.md)和[出站一致性验收](docs/scheduler-fidelity-contract.md)；正式调度尚未实现。
 - [快速交接](HANDOFF.md)：回家后连接既有服务、继续开发的最短步骤。
 - [详细架构](docs/architecture.md)：组件职责、协议流、认证、出口、运行与扩展边界。
 - [部署与恢复](docs/deployment.md)、[构建说明](docs/native-build.md)、[验收证据](docs/validation.md)。
